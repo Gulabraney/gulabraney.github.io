@@ -3057,6 +3057,20 @@
       card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
     });
 
+    /* Category slug aliases: hyphen wale roop (jo bahar se share /
+       type kiye ja sakte hain) bhi wahi category page kholein jo
+       site ke apne bina-hyphen wale slug kholte hain. */
+    var CAT_ALIAS = {
+      'web-series': 'webseries',
+      'new-releases': 'new',
+      'old-classics': 'classics',
+      'underrated-gems': 'gems'
+    };
+    function catKeyOf(slug) {
+      if (CATS[slug]) return slug;
+      var a = CAT_ALIAS[slug];
+      return (a && CATS[a]) ? a : null;
+    }
     /* Route ke saath scroll memory: back jaane par user wapas usi
        page ki usi jagah par aata hai jahan se gaya tha. */
     var lastHash = null;
@@ -3079,7 +3093,7 @@
       if (lastHash !== null && lastHash !== h) scrollMem[lastHash] = window.scrollY;
       var backHref = (lastHash && /^(#\/format\/|#\/category\/)/.test(lastHash)) ? lastHash : null;
       if (mc && byId(mc[1])) { document.body.classList.add('view-on'); showMovie(byId(mc[1]), backHref); restoreScroll(h); }
-      else if (cc && CATS[cc[1]]) { document.body.classList.add('view-on'); showCategory(cc[1]); restoreScroll(h); }
+      else if (cc && catKeyOf(cc[1])) { document.body.classList.add('view-on'); showCategory(catKeyOf(cc[1])); restoreScroll(h); }
       else if (fc && FORMATS[fc[1]]) { document.body.classList.add('view-on'); showFormat(fc[1]); restoreScroll(h); }
       else { document.body.classList.remove('view-on'); viewRoot.innerHTML = ''; }
       lastHash = h;
@@ -3653,13 +3667,23 @@
       var thumb = m.poster
         ? '<img decoding="async" class="rel-thumb" src="' + m.poster + '" alt="' + esc(m.title) + ' poster — ' + esc(m.kind) + ' (2026), release date ' + fullDate(m) + '" loading="lazy" width="104" height="60" />'
         : '<span class="rel-thumb-fallback" role="img" aria-label="' + esc(m.title) + ' poster — ' + esc(m.kind) + ' (2026), release date ' + fullDate(m) + '">' + esc(m.title) + '</span>';
-      var attrs = idx >= 0 ? ' data-goto="' + idx + '" data-mid="' + m.id + '" tabindex="0" role="button" aria-label="' + esc(m.title) + ' ka page kholo — info, trailer aur pics"' : '';
+      /* Bhogi ki calendar entry baaki entries jaisi hai: click par
+         seedha movie page nahi — pehle uska poster 3D stage par
+         load hota hai (data-stage), movie page stage/poster ke
+         click se khulta hai. */
+      var attrs = idx >= 0 ? ' data-goto="' + idx + '" data-mid="' + m.id + '"' + (m.id === 'bhogi' ? ' data-stage="1"' : '') + ' tabindex="0" role="button" aria-label="' + esc(m.title) + ' ka page kholo — info, trailer aur pics"' : '';
       return '<div class="rel-row"' + attrs + '>' + dateBadge(m) + thumb +
         '<span class="rel-row-main"><b>' + esc(m.title) + '</b><span>' + fullDate(m) + ' • ' + esc(m.kind) + ' • ' + esc(m.cast) + (m.meta ? ' • ' + esc(m.meta) : '') + (m.note ? ' • ' + esc(m.note) : '') + '</span></span>' +
         stChip(m) + '</div>';
     }).join('');
     listEl.querySelectorAll('[data-goto]').forEach(function (row) {
-      function act() { location.hash = '#/movie/' + row.getAttribute('data-mid'); }
+      function act() {
+        /* data-stage wali entry (Bhogi): click par poster pehle
+           3D stage par load ho — home page par hi rehte hue;
+           movie page ke liye stage ke poster par click hota hai. */
+        if (row.hasAttribute('data-stage')) { goTo(parseInt(row.getAttribute('data-goto'), 10), true); return; }
+        location.hash = '#/movie/' + row.getAttribute('data-mid');
+      }
       row.addEventListener('click', act);
       row.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); }
@@ -3788,6 +3812,11 @@
       return node && node.closest ? node.closest(SEL) : null;
     }
     function hrefOf(el) {
+      /* data-stage wala button (Bhogi ki calendar entry): universal
+         system uska page NAHI kholta — native click row ke apne
+         handler tak jaata hai, jo poster ko 3D stage par load
+         karta hai (home page par hi). */
+      if (el.hasAttribute('data-stage')) return null;
       var mid = el.getAttribute('data-mid');
       if (mid) return '#/movie/' + mid;
       if (el.getAttribute('data-format') && (' ' + el.className + ' ').indexOf(' ccard ') !== -1) {
